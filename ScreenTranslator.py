@@ -5,6 +5,27 @@ import cv2
 from PIL import ImageGrab, Image, ImageTk
 from io import BytesIO
 from collections import defaultdict
+import requests
+
+url = "https://api-free.deepl.com/v2/translate"
+headers = {
+    "Authorization": "DeepL-Auth-Key 8e012d61-9bd1-4f2e-9dab-fb32a0bff1c4:fx"
+}
+
+def translate(text):
+    data = {
+        "text": text,
+        "source_lang": "EN",
+        "target_lang": "KO"
+    }
+
+    response = requests.post(url, headers=headers, data=data)
+
+    if response.status_code == 200:
+        translated_json = response.json()
+        return translated_json['translations'][0]['text']
+    else:
+        raise Exception(f"DeepL API 호출 실패: {response.status_code}, {response.text}")
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -56,6 +77,7 @@ class TranslateApp:
         self.setup_frame_A()
         self.setup_frame_B()
         self.update_capture()
+        self.last_text = ""
 
     def setup_frame_A(self):
         self.frame_A = tk.Toplevel(self.root)
@@ -79,8 +101,20 @@ class TranslateApp:
         self.trans_text_label = tk.Label(self.frame_B, text="번역 텍스트", bg="white", height=10)
         self.trans_text_label.pack(fill=tk.X, expand=True)
 
-    def set_text(self, text):
-        self.ocr_text_label.config(text=text)
+    def set_text(self, text_lines):
+        combined_text = " ".join(text_lines).strip()
+        combined_text = " ".join(combined_text.split())
+
+        self.ocr_text_label.config(text=combined_text)
+
+        if len(combined_text)>10 and combined_text!=self.last_text:
+            try:
+                translated_text = translate(combined_text)
+                self.set_trans_text(translated_text)
+                self.last_text = combined_text
+            except Exception as e:
+                print(f"번역 실패: {e}")
+                self.set_trans_text("번역 실패:다시 시도하세요")
 
     def set_trans_text(self, text):
         self.trans_text_label.config(text=text)
@@ -99,8 +133,8 @@ class TranslateApp:
             # OCR 처리
             processed_image, text_results = ocr_box(image)
 
-            # OCR 결과 텍스트를 메인 창에 표시
-            self.set_text("\n".join(text_results))
+            if text_results:
+                self.set_text(text_results)
 
             # PIL 이미지를 ImageTk로 변환
             photo = ImageTk.PhotoImage(processed_image)
