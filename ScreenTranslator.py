@@ -78,12 +78,21 @@ class TranslateApp:
         self.setup_frame_B()
         self.update_capture()
         self.last_text = ""
+        self.resizing = False
+        self.start_x=0
+        self.start_y=0
+        self.translation_interval = 3000
+        self.last_translation_time = 0
 
     def setup_frame_A(self):
         self.frame_A = tk.Toplevel(self.root)
         self.frame_A.title('캡쳐')
         self.frame_A.geometry('300x200')  # 창 크기 설정
         self.frame_A.wm_attributes('-transparentcolor', self.frame_A['bg'])  # 배경 투명 설정
+
+        self.frame_A.bind("<ButtonPress-1>", self.start_resize)  # 왼쪽 클릭 시작
+        self.frame_A.bind("<B1-Motion>", self.resize_frame)     # 드래그 중
+        self.frame_A.bind("<ButtonRelease-1>", self.stop_resize)
 
     def setup_frame_B(self):
         self.frame_B = tk.Toplevel(self.root)
@@ -95,11 +104,48 @@ class TranslateApp:
 
         # OCR 인식 텍스트를 보여줄 레이블
         self.ocr_text_label = tk.Label(self.frame_B, text="OCR 인식 텍스트", bg="white", height=10)
-        self.ocr_text_label.pack(fill=tk.X, expand=True)
+        self.ocr_text_label.pack(fill=tk.X, padx=10, pady=10)
 
         # 번역된 텍스트를 보여줄 레이블
         self.trans_text_label = tk.Label(self.frame_B, text="번역 텍스트", bg="white", height=10)
-        self.trans_text_label.pack(fill=tk.X, expand=True)
+        self.trans_text_label.pack(fill=tk.X, padx=10, pady=10)
+
+        self.frame_B.bind("<Configure>", self.update_wraplength)
+
+    def update_wraplength(self, event):
+        new_wraplength = event.width - 20
+        self.ocr_text_label.config(wraplength=new_wraplength)
+        self.trans_text_label.config(wraplength=new_wraplength)
+
+    def start_resize(self, event):
+        """크기 조정을 시작."""
+        self.resizing = True
+        self.start_x = event.x_root
+        self.start_y = event.y_root
+
+    def resize_frame(self, event):
+        """드래그 중 프레임 크기를 조정."""
+        if self.resizing:
+            # 마우스 이동 거리 계산
+            dx = event.x_root - self.start_x
+            dy = event.y_root - self.start_y
+
+            # 현재 창 크기 가져오기
+            current_width = self.frame_A.winfo_width()
+            current_height = self.frame_A.winfo_height()
+
+            # 창 크기 업데이트
+            new_width = max(100, current_width + dx)  # 최소 너비 제한
+            new_height = max(50, current_height + dy)  # 최소 높이 제한
+            self.frame_A.geometry(f"{new_width}x{new_height}")
+
+            # 시작점 업데이트
+            self.start_x = event.x_root
+            self.start_y = event.y_root
+
+    def stop_resize(self, event):
+        """크기 조정을 종료."""
+        self.resizing = False
 
     def set_text(self, text_lines):
         combined_text = " ".join(text_lines).strip()
@@ -107,11 +153,13 @@ class TranslateApp:
 
         self.ocr_text_label.config(text=combined_text)
 
-        if len(combined_text)>10 and combined_text!=self.last_text:
+        current_time = self.frame_A.winfo_toplevel().tk.call('clock', 'clicks')
+        if len(combined_text)>10 and combined_text!=self.last_text and current_time - self.last_translation_time>self.translation_interval:
             try:
                 translated_text = translate(combined_text)
                 self.set_trans_text(translated_text)
                 self.last_text = combined_text
+                self.last_translation_time = current_time
             except Exception as e:
                 print(f"번역 실패: {e}")
                 self.set_trans_text("번역 실패:다시 시도하세요")
@@ -147,7 +195,7 @@ class TranslateApp:
             print(f"캡처 중 오류 발생: {e}")
 
         # 빠르게 캡처 업데이트 (100ms 주기)
-        self.frame_A.after(100, self.update_capture)
+        self.frame_A.after(1000, self.update_capture)
 
 
 root = tk.Tk()
