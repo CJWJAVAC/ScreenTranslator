@@ -2,4 +2,4 @@
 
 ## 사용 시 디스플레이 설정 배율 100%로 두기
 
-![PDF 미리보기](./path/to/your/image.png)
+![작동 예시](https://github.com/CJWJAVAC/ScreenTranslator/blob/main/ExampleImage.png)
